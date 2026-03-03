@@ -1,0 +1,27 @@
+services:
+  houndr:
+    build: .
+    ports:
+      - "6080:6080"
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+      - houndr-data:/app/data
+    environment:
+      - RUST_LOG=houndr_server=info,houndr_repo=info,houndr_index=info
+      # - GITHUB_TOKEN=
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 256M
+
+volumes:
+  houndr-data:

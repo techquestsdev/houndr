@@ -1,0 +1,30 @@
+[package]
+name = "houndr-index"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Trigram-based code search index engine — build, serialize, mmap-read, and query"
+keywords = ["trigram", "search", "code-search", "index"]
+categories = ["text-processing", "database-implementations"]
+
+[dependencies]
+roaring = "0.11"
+memmap2 = "0.9"
+regex = "1"
+regex-syntax = "0.8"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+serde.workspace = true
+glob = "0.3"
+thiserror.workspace = true
+rayon.workspace = true
+tracing.workspace = true
+rustc-hash = "2"
+
+[dev-dependencies]
+tempfile = "3"
+criterion = "0.5"
+
+[[bench]]
+name = "index_bench"
+harness = false

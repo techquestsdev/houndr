@@ -1,0 +1,185 @@
+# Default values for houndr
+
+# Pull secrets for private repositories
+# Each entry should be a reference to a Kubernetes Secret that contains the necessary credentials for pulling private images or accessing private repositories
+# imagePullSecrets:
+#   - name: my-registry-secret
+imagePullSecrets: []
+
+# Container image configuration
+image:
+  repository: ghcr.io/techquestsdev/houndr
+  tag: ""
+  pullPolicy: Always
+
+# Resource requests and limits
+# You can specify CPU and memory requests and limits for the Houndr container
+# Adapt the values based on your expected workload and cluster capacity
+# resources:
+#   requests:
+#     cpu: "100m"
+#     memory: "128Mi"
+#   limits:
+#     cpu: "500m"
+#     memory: "512Mi"
+# If not specified, no resource requests or limits will be set
+resources: {}
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 6080
+
+# Environment variables
+# They must be provided in the format of a key-value map, where the key is the name of the environment variable and the value is its corresponding value
+#  env:
+#    GITHUB_TOKEN: "your_github_token"
+env: {}
+
+# Inject environment variables from existing Secrets or ConfigMaps
+# envFrom:
+#   - secretRef:
+#       name: houndr-tokens
+#   - configMapRef:
+#       name: houndr-extra-config
+envFrom: []
+
+# Application configuration
+# Precedence: existingConfigMap > inline > structured values
+config:
+  # Use an existing ConfigMap containing config.toml (highest precedence)
+  existingConfigMap: ""
+  # Raw TOML string escape hatch (overrides structured values below)
+  inline: ""
+
+  # Structured config (rendered to config.toml when inline is empty)
+  server:
+    bind: "0.0.0.0:6080"
+    timeout_secs: 30
+    # cors_origins: []
+    # rate_limit_rps: 0
+    # max_request_bytes: 1048576
+    # max_search_results: 10000
+
+  indexer:
+    data_dir: "data"
+    max_concurrent_indexers: 4
+    poll_interval_secs: 60
+    max_file_size: 2097152
+    exclude_patterns:
+      - "*.min.js"
+      - "vendor/*"
+      - "node_modules/*"
+    index_timeout_secs: 300
+
+  cache:
+    max_entries: 1000
+    ttl_secs: 300
+
+  # repos: []
+  # Example:
+  # repos:
+  #   - name: my-project
+  #     url: https://github.com/org/my-project.git
+  #     ref: main
+  #   - name: private-project
+  #     url: git@github.com:org/private-project.git
+  #     ref: main
+  #     auth_token: $GITHUB_TOKEN
+  #     ssh_key_path: ~/.ssh/id_ed25519
+  repos: []
+
+# Persistence for indexed data (cloned repos + indexes)
+# When enabled, a PersistentVolumeClaim is created via volumeClaimTemplates
+# When disabled, data is stored in an emptyDir and lost on pod restart
+persistence:
+  enabled: false
+  # storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi
+
+# Init containers
+# Each entry supports: name, image, command, args, env, volumeMounts, securityContext
+# If securityContext is not provided, the application's securityContext is used
+# initContainers:
+#   - name: clone-ssh-keys
+#     image: alpine:3
+#     command: ["sh", "-c", "cp /secret/id_ed25519 /ssh/id_ed25519 && chmod 600 /ssh/id_ed25519"]
+#     env:
+#       - name: MY_VAR
+#         value: "my-value"
+#     volumeMounts:
+#       - name: ssh-keys
+#         mountPath: /ssh
+#       - name: ssh-secret
+#         mountPath: /secret
+#         readOnly: true
+#     securityContext:
+#       runAsUser: 1000
+initContainers: []
+
+# Additional volume mounts for the main container
+# extraVolumeMounts:
+#   - name: ssh-keys
+#     mountPath: /home/houndr/.ssh
+#     readOnly: true
+extraVolumeMounts: []
+
+# Additional volumes for the pod
+# extraVolumes:
+#   - name: ssh-keys
+#     emptyDir: {}
+#   - name: ssh-secret
+#     secret:
+#       secretName: my-ssh-secret
+extraVolumes: []
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  host: houndr.example.com
+  tls: []
+    # - secretName: houndr-tls
+    #   hosts:
+    #     - houndr.example.com
+
+# Service Account configuration
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Pod Security Context configuration
+podSecurityContext:
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container Security Context configuration
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Node selector for application pod
+nodeSelector: {}
+
+# Tolerations for application pod
+tolerations: []
+
+# Affinity for application pod
+affinity: {}
+
+# Overrides base name of the deployed resources
+fullnameOverride: ""
+
+# Overrides chart name in the deployed resources
+nameOverride: ""

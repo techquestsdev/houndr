@@ -1,0 +1,26 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/houndr-index",
+    "crates/houndr-repo",
+    "crates/houndr-server",
+]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+license = "GPL-3.0-only"
+repository = "https://github.com/techquestsdev/houndr"
+description = "A fast, trigram-based code search engine for Git repositories"
+
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
+rayon = "1"
+
+houndr-index = { path = "crates/houndr-index" }
+houndr-repo = { path = "crates/houndr-repo" }

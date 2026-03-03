@@ -1,0 +1,365 @@
+openapi: 3.1.0
+info:
+  title: houndr API
+  description: Code search engine API for searching across indexed Git repositories.
+  version: 1.0.0
+  license:
+    name: GPL-3.0
+    url: https://www.gnu.org/licenses/gpl-3.0.html
+
+servers:
+  - url: http://127.0.0.1:6080
+    description: Local development
+
+paths:
+  /api/v1/search:
+    get:
+      summary: Search code
+      description: |
+        Search across indexed repositories. Returns matching lines grouped by repo and file,
+        with context blocks and match highlight ranges. Results are cached (LRU with TTL).
+      operationId: search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query string. Minimum 3 characters for trigram extraction.
+          schema:
+            type: string
+            minLength: 3
+          example: "readFile"
+        - name: repos
+          in: query
+          required: false
+          description: Comma-separated repository names to search. Omit to search all.
+          schema:
+            type: string
+          example: "my-project,other-repo"
+        - name: files
+          in: query
+          required: false
+          description: Glob pattern to filter file paths.
+          schema:
+            type: string
+          example: "*.rs"
+        - name: i
+          in: query
+          required: false
+          description: Case-insensitive matching.
+          schema:
+            type: boolean
+            default: false
+        - name: regex
+          in: query
+          required: false
+          description: Treat query as a regular expression.
+          schema:
+            type: boolean
+            default: false
+        - name: max
+          in: query
+          required: false
+          description: Maximum number of file matches to return per repo. 0 = server default (10000). The response always includes accurate total counts regardless of this limit.
+          schema:
+            type: integer
+            default: 10000
+            minimum: 0
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: Invalid query (e.g. bad regex)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Request timeout
+
+  /api/v1/search/stream:
+    get:
+      summary: Stream search results (SSE)
+      description: |
+        Same parameters as `/api/v1/search` but returns results as Server-Sent Events.
+        Each repo's results arrive as a `result` event as soon as that repo's search completes.
+        A final `done` event is sent with timing summary.
+      operationId: searchStream
+      parameters:
+        - $ref: "#/components/parameters/q"
+        - $ref: "#/components/parameters/repos"
+        - $ref: "#/components/parameters/files"
+        - $ref: "#/components/parameters/i"
+        - $ref: "#/components/parameters/regex"
+        - $ref: "#/components/parameters/max"
+      responses:
+        "200":
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Event types:
+                  - `result`: JSON-encoded SearchResult (one per repo with matches)
+                  - `done`: JSON object with `duration_ms` (float) and `total_files` (int)
+        "400":
+          description: Invalid query
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/repos:
+    get:
+      summary: List indexed repositories
+      description: Returns all currently indexed repositories with document and trigram counts.
+      operationId: listRepos
+      responses:
+        "200":
+          description: List of indexed repos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RepoInfo"
+
+  /api/v1/status:
+    get:
+      summary: Indexing status
+      description: |
+        Returns per-repo indexing status. Useful for monitoring boot progress.
+        Possible statuses: `pending`, `indexing`, `ready`, `failed`.
+      operationId: getStatus
+      responses:
+        "200":
+          description: Status map keyed by repo name
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: "#/components/schemas/RepoStatus"
+              example:
+                my-project:
+                  status: ready
+                other-repo:
+                  status: indexing
+                broken-repo:
+                  status: failed
+                  error: "fetch failed: authentication required"
+
+  /healthz:
+    get:
+      summary: Health check
+      description: Returns server health with indexed repo count and total documents.
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+components:
+  parameters:
+    q:
+      name: q
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 3
+    repos:
+      name: repos
+      in: query
+      required: false
+      schema:
+        type: string
+    files:
+      name: files
+      in: query
+      required: false
+      schema:
+        type: string
+    i:
+      name: i
+      in: query
+      required: false
+      schema:
+        type: boolean
+        default: false
+    regex:
+      name: regex
+      in: query
+      required: false
+      schema:
+        type: boolean
+        default: false
+    max:
+      name: max
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 10000
+        minimum: 0
+
+  schemas:
+    SearchResponse:
+      type: object
+      required: [results, duration_ms, total_files, total_matches]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResult"
+        duration_ms:
+          type: number
+          format: double
+          description: Total search time in milliseconds.
+          example: 1.23
+        total_files:
+          type: integer
+          description: Total number of files with matches across all repos.
+          example: 3
+        total_matches:
+          type: integer
+          description: Total matching lines across all files and repos.
+        truncated:
+          type: boolean
+          description: Whether results were truncated due to the max results limit.
+
+    SearchResult:
+      type: object
+      required: [repo, files]
+      properties:
+        repo:
+          type: string
+          description: Repository name.
+          example: my-project
+        url:
+          type: string
+          description: Git clone URL (from config).
+          example: https://github.com/user/my-project.git
+        git_ref:
+          type: string
+          description: Branch or tag indexed.
+          example: main
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileMatch"
+        total_file_count:
+          type: integer
+          description: Total file matches before truncation.
+        total_match_count:
+          type: integer
+          description: Total matching lines in this repo.
+
+    FileMatch:
+      type: object
+      required: [path, blocks]
+      properties:
+        path:
+          type: string
+          description: File path relative to repo root.
+          example: src/main.rs
+        blocks:
+          type: array
+          description: Groups of contiguous matching/context lines.
+          items:
+            $ref: "#/components/schemas/MatchBlock"
+
+    MatchBlock:
+      type: object
+      required: [lines]
+      properties:
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineMatch"
+
+    LineMatch:
+      type: object
+      required: [line_number, line, match_ranges]
+      properties:
+        line_number:
+          type: integer
+          description: 1-based line number in the file.
+          example: 10
+        line:
+          type: string
+          description: Full line content.
+          example: "fn readFile(path: &str) -> String {"
+        match_ranges:
+          type: array
+          description: Byte offset pairs [start, end) of matches within the line. Empty for context lines.
+          items:
+            type: array
+            items:
+              type: integer
+            minItems: 2
+            maxItems: 2
+          example: [[3, 11]]
+
+    RepoInfo:
+      type: object
+      required: [name, doc_count, trigram_count]
+      properties:
+        name:
+          type: string
+          example: my-project
+        doc_count:
+          type: integer
+          description: Number of indexed documents (files).
+          example: 1234
+        trigram_count:
+          type: integer
+          description: Number of unique trigrams in the index.
+          example: 98765
+
+    RepoStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [pending, indexing, ready, failed]
+        error:
+          type: string
+          description: Error message (only present when status is `failed`).
+
+    HealthResponse:
+      type: object
+      required: [status, repos_indexed, total_docs]
+      properties:
+        status:
+          type: string
+          enum: [ready, initializing]
+          description: "`ready` when at least one repo is indexed, `initializing` otherwise."
+        repos_indexed:
+          type: integer
+          example: 3
+        total_docs:
+          type: integer
+          description: Total documents across all indexed repos.
+          example: 4567
+        watcher_status:
+          type: string
+          enum: [ok, stale]
+          description: Watcher liveness. Absent until first indexing cycle completes.
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message.
+          example: "regex parse error: unclosed group"

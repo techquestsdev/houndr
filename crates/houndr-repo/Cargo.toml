@@ -1,0 +1,22 @@
+[package]
+name = "houndr-repo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Git repository management and indexing pipeline for houndr code search"
+keywords = ["git", "code-search", "indexing"]
+categories = ["development-tools"]
+
+[dependencies]
+houndr-index.workspace = true
+git2 = "0.20"
+serde.workspace = true
+toml = "1.0"
+glob = "0.3"
+serde_json = "1"
+anyhow.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+rayon.workspace = true
+tracing.workspace = true

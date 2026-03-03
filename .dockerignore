@@ -1,0 +1,15 @@
+target/
+data/
+.git/
+.claude/
+*.md
+LICENSE
+Dockerfile
+.dockerignore
+.github/
+.env*
+docs/
+deploy/
+docker-compose.yml
+Makefile
+default-repo.sh

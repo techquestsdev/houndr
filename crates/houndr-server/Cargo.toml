@@ -1,0 +1,33 @@
+[package]
+name = "houndr-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "HTTP server and web UI for houndr code search"
+keywords = ["code-search", "server", "web-ui"]
+categories = ["development-tools", "web-programming::http-server"]
+
+[dependencies]
+houndr-index.workspace = true
+houndr-repo.workspace = true
+axum = "0.8"
+tokio.workspace = true
+serde.workspace = true
+serde_json = "1"
+lru = "0.16"
+clap = { version = "4", features = ["derive"] }
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tower-http = { version = "0.6", features = ["cors", "timeout", "compression-gzip", "trace"] }
+glob = "0.3"
+rayon.workspace = true
+tokio-stream = "0.1"
+tokio-util = "0.7"
+governor = "0.10"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+tempfile = "3"

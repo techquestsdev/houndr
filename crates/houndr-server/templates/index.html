@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>houndr</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="top-bar">
+  <h1>houndr</h1>
+  <div id="index-status" class="hidden"></div>
+</div>
+<div class="search-bar">
+  <input type="text" id="query" placeholder="Search code..." autofocus>
+  <input type="text" id="files" placeholder="File pattern">
+  <input type="text" id="repos" placeholder="Repos (',' sep)">
+</div>
+<div class="opts">
+  <div class="opts-left"><label><input type="checkbox" id="case-i"> Case insensitive</label>
+  <label><input type="checkbox" id="is-regex"> Regex</label></div>
+  <div id="status"></div>
+</div>
+<div id="results"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
