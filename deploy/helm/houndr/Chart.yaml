@@ -3,7 +3,7 @@ name: houndr
 description: A fast, trigram-based code search engine for Git repositories - Hound, rewritten in Rust.
 type: application
 version: "1.0.0"
-appVersion: "1.0.0"
+appVersion: "latest"
 keywords:
   - code-search
   - search-engine
