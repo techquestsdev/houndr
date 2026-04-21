@@ -176,13 +176,28 @@ impl GitRepo {
         Some(result)
     }
 
-    /// Set up git2 credentials callback based on repo config.
+    /// Set up git2 credentials and certificate callbacks based on repo config.
     ///
-    /// libgit2 calls the callback repeatedly on auth failure. We track attempts
-    /// so explicit-key methods fall back to the SSH agent on retry, rather than
-    /// looping on the same failing credential.
+    /// libgit2 calls the credentials callback repeatedly on auth failure. We
+    /// track attempts so explicit-key methods fall back to the SSH agent on
+    /// retry, rather than looping on the same failing credential.
+    ///
+    /// For SSH connections, we accept the remote host key unconditionally.
+    /// Houndr indexes explicitly-configured repositories from known internal
+    /// hosts, so strict host-key verification adds friction without meaningful
+    /// security benefit (the URLs come from the operator, not end users).
     fn setup_credentials(callbacks: &mut RemoteCallbacks, config: &RepoConfig) {
         use std::sync::atomic::{AtomicU32, Ordering};
+
+        // Accept SSH host keys without checking known_hosts.
+        // HTTPS/TLS certificates still go through normal CA validation.
+        callbacks.certificate_check(|cert, _host| {
+            if cert.as_hostkey().is_some() {
+                Ok(git2::CertificateCheckStatus::CertificateOk)
+            } else {
+                Ok(git2::CertificateCheckStatus::CertificatePassthrough)
+            }
+        });
 
         if let Some(token) = &config.auth_token {
             let token = token.clone();

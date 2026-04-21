@@ -86,7 +86,10 @@ impl Default for CacheConfig {
 }
 
 /// Configuration for a single Git repository.
-#[derive(Debug, Clone, Deserialize)]
+///
+/// `Debug` is manually implemented to redact secret fields (auth_token,
+/// ssh_key, ssh_key_passphrase) so they never leak into logs.
+#[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RepoConfig {
     /// Unique identifier for this repo.
@@ -110,6 +113,26 @@ pub struct RepoConfig {
     /// Passphrase for SSH private key (if encrypted).
     #[serde(default)]
     pub ssh_key_passphrase: Option<String>,
+}
+
+impl std::fmt::Debug for RepoConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RepoConfig")
+            .field("name", &self.name)
+            .field("url", &self.url)
+            .field("git_ref", &self.git_ref)
+            .field(
+                "auth_token",
+                &self.auth_token.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("ssh_key", &self.ssh_key.as_ref().map(|_| "[REDACTED]"))
+            .field("ssh_key_path", &self.ssh_key_path)
+            .field(
+                "ssh_key_passphrase",
+                &self.ssh_key_passphrase.as_ref().map(|_| "[REDACTED]"),
+            )
+            .finish()
+    }
 }
 
 fn default_bind() -> String {
@@ -193,10 +216,12 @@ impl Config {
             if repo.name.is_empty() {
                 anyhow::bail!("repo name cannot be empty");
             }
+            validate_repo_name(&repo.name)?;
             if repo.url.is_empty() {
                 anyhow::bail!("repo url cannot be empty for repo '{}'", repo.name);
             }
             validate_repo_url(&repo.url, &repo.name)?;
+            validate_auth_vs_url(repo)?;
             if let Some(ref git_ref) = repo.git_ref {
                 validate_git_ref(git_ref, &repo.name)?;
             }
@@ -219,6 +244,37 @@ impl Config {
                 .and_then(|v| resolve_env_opt(&v));
         }
     }
+}
+
+/// Reject repo names that could escape the data directory.
+fn validate_repo_name(name: &str) -> anyhow::Result<()> {
+    if name.contains("..") || name.contains('\0') || name.starts_with('/') || name.starts_with('~')
+    {
+        anyhow::bail!(
+            "repo name '{}' contains forbidden characters (path traversal)",
+            name
+        );
+    }
+    Ok(())
+}
+
+/// Warn (at startup) if `auth_token` is set on an SSH URL — the token will
+/// be ignored because libgit2 uses SSH transport for those URLs.
+fn validate_auth_vs_url(repo: &RepoConfig) -> anyhow::Result<()> {
+    if repo.auth_token.is_some() {
+        let is_ssh = repo.url.starts_with("ssh://")
+            || (repo.url.contains('@') && repo.url.contains(':') && !repo.url.contains("://"));
+        if is_ssh {
+            anyhow::bail!(
+                "repo '{}': auth_token is set but URL '{}' uses SSH transport — \
+                 the token will be ignored. Use an HTTPS URL with auth_token, \
+                 or use ssh_key/ssh_key_path for SSH authentication",
+                repo.name,
+                repo.url
+            );
+        }
+    }
+    Ok(())
 }
 
 fn validate_repo_url(url: &str, repo_name: &str) -> anyhow::Result<()> {
@@ -436,5 +492,48 @@ url = "https://github.com/test/test.git"
     #[test]
     fn validate_ref_null_byte_rejected() {
         assert!(validate_git_ref("main\0bad", "test").is_err());
+    }
+
+    #[test]
+    fn validate_repo_name_traversal_rejected() {
+        assert!(validate_repo_name("../../etc").is_err());
+        assert!(validate_repo_name("foo/../bar").is_err());
+        assert!(validate_repo_name("/absolute/path").is_err());
+        assert!(validate_repo_name("~user/dir").is_err());
+    }
+
+    #[test]
+    fn validate_repo_name_ok() {
+        assert!(validate_repo_name("my-repo").is_ok());
+        assert!(validate_repo_name("org/sub/repo").is_ok());
+        assert!(validate_repo_name("apps/data-fivetran/cloud-function").is_ok());
+    }
+
+    #[test]
+    fn reject_auth_token_with_ssh_url() {
+        let repo = RepoConfig {
+            name: "test".into(),
+            url: "git@gitlab.com:org/repo.git".into(),
+            git_ref: None,
+            auth_token: Some("token".into()),
+            ssh_key: None,
+            ssh_key_path: None,
+            ssh_key_passphrase: None,
+        };
+        assert!(validate_auth_vs_url(&repo).is_err());
+    }
+
+    #[test]
+    fn allow_auth_token_with_https_url() {
+        let repo = RepoConfig {
+            name: "test".into(),
+            url: "https://gitlab.com/org/repo.git".into(),
+            git_ref: None,
+            auth_token: Some("token".into()),
+            ssh_key: None,
+            ssh_key_path: None,
+            ssh_key_passphrase: None,
+        };
+        assert!(validate_auth_vs_url(&repo).is_ok());
     }
 }
