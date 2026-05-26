@@ -156,7 +156,7 @@ impl GitRepo {
     /// Detect the default branch from the bare repo's HEAD reference.
     fn detect_default_branch(repo: &Repository) -> Option<String> {
         let head = repo.head().ok()?;
-        head.shorthand().map(|s| s.to_string())
+        head.shorthand().ok().map(|s| s.to_string())
     }
 
     /// Detect the default branch by querying the remote (for fresh clones with no local HEAD).
@@ -168,7 +168,7 @@ impl GitRepo {
             .connect_auth(git2::Direction::Fetch, Some(callbacks), None)
             .ok()?;
         let default_branch = remote.default_branch().ok()?;
-        let name = default_branch.as_str()?;
+        let name = default_branch.as_str().ok()?;
         // Strip "refs/heads/" prefix
         let short = name.strip_prefix("refs/heads/").unwrap_or(name);
         let result = short.to_string();
@@ -301,8 +301,8 @@ impl GitRepo {
             }
 
             let name = match entry.name() {
-                Some(n) => n,
-                None => return git2::TreeWalkResult::Ok,
+                Ok(n) => n,
+                Err(_) => return git2::TreeWalkResult::Ok,
             };
 
             let path = if dir.is_empty() {
@@ -378,8 +378,8 @@ impl GitRepo {
             }
 
             let name = match entry.name() {
-                Some(n) => n,
-                None => return git2::TreeWalkResult::Ok,
+                Ok(n) => n,
+                Err(_) => return git2::TreeWalkResult::Ok,
             };
 
             let path = if dir.is_empty() {
