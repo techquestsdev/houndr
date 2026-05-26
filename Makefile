@@ -62,11 +62,11 @@ release: ## Create a release (usage: make release VERSION=1.2.0)
 		exit 1; \
 	fi
 	@echo "Releasing v$(VERSION)..."
-	sed -i '' 's/^version = ".*"/version = "$(VERSION)"/' Cargo.toml
-	sed -i '' 's/^version: ".*"/version: "$(VERSION)"/' deploy/helm/houndr/Chart.yaml
+	perl -i -pe 's/^version = ".*"/version = "$(VERSION)"/' Cargo.toml
+	perl -i -pe 's/^version: ".*"/version: "$(VERSION)"/' deploy/helm/houndr/Chart.yaml
 	cargo check
 	git add Cargo.toml Cargo.lock deploy/helm/houndr/Chart.yaml
-	git commit -m "chore: bump version to $(VERSION)"
+	git commit --signoff --gpg-sign -m "chore: bump version to $(VERSION)"
 	git tag -s "v$(VERSION)" -m "v$(VERSION)"
 	git push
 	git push origin "v$(VERSION)"
